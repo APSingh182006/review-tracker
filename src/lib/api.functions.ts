@@ -21,6 +21,7 @@ type ReviewRecord = {
   done_date: string | null;
   marks: number | null;
   feedback: string | null;
+  present_student_ids?: string[] | null;
 };
 type LocalState = {
   sections: Section[];
@@ -151,7 +152,7 @@ export const deleteSection = createServerFn({ method: "POST" })
     });
   });
 
-export type Review = { id: string; review_no: number; done: boolean; done_date: string | null; marks: number | null; feedback: string | null };
+export type Review = { id: string; review_no: number; done: boolean; done_date: string | null; marks: number | null; feedback: string | null; present_student_ids: string[] | null };
 export type Student = { id: string; roll_no: string; name: string; group_id: string | null };
 export type Group = {
   id: string; group_no: number; title: string; final_submitted: boolean; final_remarks: string | null;
@@ -184,7 +185,7 @@ export const getSectionData = createServerFn({ method: "POST" })
         members: members.map(({ id, roll_no, name }) => ({ id, roll_no, name })),
         reviews: state.reviews.filter((review) => review.group_id === group.id)
           .sort((a, b) => a.review_no - b.review_no)
-          .map(({ group_id: _groupId, ...review }) => review),
+          .map(({ group_id: _groupId, ...review }) => ({ ...review, present_student_ids: review.present_student_ids ?? null })),
       };
     });
     const students: Student[] = sectionStudents
@@ -285,6 +286,23 @@ export const updateReview = createServerFn({ method: "POST" })
       review.done_date = data.done_date;
       review.marks = data.marks;
       review.feedback = data.feedback;
+      return { ok: true };
+    });
+  });
+
+export const updateAttendance = createServerFn({ method: "POST" })
+  .validator((data: { token: string; id: string; present_student_ids: string[] }) => tokenSchema.extend({
+    id: z.string().uuid(), present_student_ids: z.array(z.string().uuid()).max(50),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    await authorize(data.token);
+    return mutateState((state) => {
+      const review = state.reviews.find((item) => item.id === data.id);
+      if (!review) throw new Error("Review not found");
+      const groupStudentIds = new Set(state.group_members.filter((member) => member.group_id === review.group_id).map((member) => member.student_id));
+      const presentIds = [...new Set(data.present_student_ids)];
+      if (presentIds.some((studentId) => !groupStudentIds.has(studentId))) throw new Error("Attendance includes a student outside this group");
+      review.present_student_ids = presentIds;
       return { ok: true };
     });
   });

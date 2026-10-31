@@ -90,3 +90,33 @@ export async function downloadSectionWorkbook(
   const safeSectionName = sectionName.replace(/[\\/:*?"<>|]/g, "-").trim() || "Section";
   XLSX.writeFile(workbook, `${safeSectionName}-review-tracker-${dateStamp}.xlsx`);
 }
+
+export async function downloadAttendanceWorkbook(sectionName: string, groups: Group[], students: Student[]) {
+  const XLSX = await import("xlsx");
+  const memberships = new Map<string, { group: Group; memberId: string }>();
+  for (const group of groups) {
+    for (const member of group.members) memberships.set(member.id, { group, memberId: member.id });
+  }
+  const headers = ["Section", "Roll No", "Student Name", "Group No", "Total Attendance (out of 5)", "Attendance %"];
+  const rows = [...students]
+    .sort((a, b) => a.roll_no.localeCompare(b.roll_no, undefined, { numeric: true, sensitivity: "base" }))
+    .map((student) => {
+      const membership = memberships.get(student.id);
+      const total = membership
+        ? membership.group.reviews.filter((review) => review.present_student_ids?.includes(student.id)).length
+        : 0;
+      return [sectionName, student.roll_no, student.name, membership?.group.group_no ?? "", total, `${Math.round(total / 5 * 100)}%`];
+    });
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  sheet["!autofilter"] = { ref: sheet["!ref"] ?? "A1" };
+  sheet["!cols"] = [
+    { wch: Math.max(14, sectionName.length + 2) }, { wch: 18 }, { wch: 30 },
+    { wch: 12 }, { wch: 30 }, { wch: 16 },
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "Attendance");
+  const date = new Date();
+  const dateStamp = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const safeSectionName = sectionName.replace(/[\\/:*?"<>|]/g, "-").trim() || "Section";
+  XLSX.writeFile(workbook, `${safeSectionName}-attendance-${dateStamp}.xlsx`);
+}

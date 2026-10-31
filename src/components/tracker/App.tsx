@@ -18,7 +18,7 @@ import { StudentsDialog } from "./StudentsDialog";
 import { GroupDialog } from "./GroupDialog";
 import { GroupDetail } from "./GroupDetail";
 import { GroupCard } from "./GroupCard";
-import { downloadSectionWorkbook } from "@/lib/export-section";
+import { downloadAttendanceWorkbook, downloadSectionWorkbook } from "@/lib/export-section";
 
 export function TrackerApp() {
   const [token, setTokenState] = useState<string | null>(null);
@@ -114,6 +114,16 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
     }
   }
 
+  async function exportAttendance() {
+    if (!section || dataQ.isLoading) return;
+    try {
+      await downloadAttendanceWorkbook(section.name, groups, students);
+      toast.success("Attendance export downloaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not export attendance");
+    }
+  }
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 bg-header text-primary-foreground shadow-card">
@@ -166,6 +176,8 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
               {isTeacher && <div className="flex flex-wrap gap-2">
                 <Button variant="outline" className="h-11 flex-1 md:flex-none" disabled={!section || dataQ.isLoading}
                   onClick={exportSection}><Download /> Export Excel</Button>
+                <Button variant="outline" className="h-11 flex-1 md:flex-none" disabled={!section || dataQ.isLoading}
+                  onClick={exportAttendance}><Download /> Export Attendance</Button>
                 <Button variant="outline" className="h-11 flex-1 md:flex-none" onClick={() => setStudentsOpen(true)}><Users /> Students</Button>
                 <Button className="h-11 flex-1 md:flex-none" disabled={!students.length}
                   onClick={() => { setEditing(null); setGroupOpen(true); }}><Plus /> New group</Button>

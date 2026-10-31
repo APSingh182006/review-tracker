@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Code2, Globe, CheckCircle2, Circle, Lock, Pencil, Trash2, Trophy } from "lucide-react";
+import { ExternalLink, Code2, Globe, CheckCircle2, Circle, Lock, Pencil, Trash2, Trophy, ChartColumnIncreasing, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { updateReview, updateFinal, updateLinks, type Group, type Review } from "@/lib/api.functions";
+import { updateReview, updateAttendance, updateFinal, updateLinks, type Group, type Review } from "@/lib/api.functions";
 import { StatusBadge } from "./StatusBadge";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function ReviewSlot({ r, token, onSaved, readOnly }: { r: Review; token: string; onSaved: () => void; readOnly: boolean }) {
+function ReviewSlot({ r, members, token, onSaved, readOnly }: { r: Review; members: Group["members"]; token: string; onSaved: () => void; readOnly: boolean }) {
   const [marks, setMarks] = useState(r.marks?.toString() ?? "");
   const [fb, setFb] = useState(r.feedback ?? "");
   useEffect(() => { setMarks(r.marks?.toString() ?? ""); setFb(r.feedback ?? ""); }, [r.id, r.marks, r.feedback]);
@@ -56,6 +58,7 @@ function ReviewSlot({ r, token, onSaved, readOnly }: { r: Review; token: string;
       {readOnly ? (r.feedback && <p className="mt-3 whitespace-pre-wrap text-sm">{r.feedback}</p>) :
       <Textarea value={fb} onChange={(e) => setFb(e.target.value)} placeholder="Feedback / notes" rows={2}
         className="mt-3" onBlur={() => fb !== (r.feedback ?? "") && save({ feedback: fb || null })} />}
+      <AttendanceRoster review={r} members={members} token={token} readOnly={readOnly} onSaved={onSaved} />
     </div>
   );
 }
@@ -67,6 +70,7 @@ export function GroupDetail({
   onSaved: () => void; onEdit: (g: Group) => void; onDelete: (g: Group) => void;
 }) {
   const [remarks, setRemarks] = useState("");
+  const [chartOpen, setChartOpen] = useState(false);
   useEffect(() => setRemarks(group?.final_remarks ?? ""), [group?.id, group?.final_remarks]);
   const done = group?.reviews.filter((r) => r.done).length ?? 0;
   const unlocked = done === 5;
@@ -84,8 +88,15 @@ export function GroupDetail({
         {group && (
           <>
             <SheetHeader className="text-left">
-              <p className="text-sm font-medium text-muted-foreground">Group {group.group_no}</p>
-              <SheetTitle className="font-display text-2xl">{group.title}</SheetTitle>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-muted-foreground">Group {group.group_no}</p>
+                  <SheetTitle className="font-display text-2xl">{group.title}</SheetTitle>
+                </div>
+                <Button variant="outline" className="h-10 shrink-0" onClick={() => setChartOpen(true)}>
+                  <ChartColumnIncreasing /> <span className="hidden sm:inline">Attendance Chart</span><span className="sm:hidden">Chart</span>
+                </Button>
+              </div>
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <StatusBadge done={done} finalSubmitted={group.final_submitted} />
                 <span className="text-sm text-muted-foreground">{done}/5 reviews · {total} / 50 marks</span>
@@ -102,7 +113,7 @@ export function GroupDetail({
               ))}
             </ul>
             <div className="mt-5 space-y-3">
-              {group.reviews.map((r) => <ReviewSlot key={r.id} r={r} token={token} readOnly={readOnly} onSaved={onSaved} />)}
+              {group.reviews.map((r) => <ReviewSlot key={r.id} r={r} members={group.members} token={token} readOnly={readOnly} onSaved={onSaved} />)}
             </div>
             <div className={`mt-5 rounded-xl border-2 p-4 ${unlocked ? "border-success bg-success-soft/50" : "border-dashed opacity-70"}`}>
               <div className="flex items-center justify-between gap-3">
@@ -125,7 +136,97 @@ export function GroupDetail({
           </>
         )}
       </SheetContent>
+      <Dialog open={chartOpen} onOpenChange={setChartOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Attendance · Group {group?.group_no}</DialogTitle>
+            <DialogDescription>Reviews attended by each student, out of five.</DialogDescription>
+          </DialogHeader>
+          {group && <AttendanceChart group={group} />}
+        </DialogContent>
+      </Dialog>
     </Sheet>
+  );
+}
+
+function AttendanceRoster({ review, members, token, readOnly, onSaved }: {
+  review: Review; members: Group["members"]; token: string; readOnly: boolean; onSaved: () => void;
+}) {
+  const [presentIds, setPresentIds] = useState<string[]>(review.present_student_ids ?? []);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setPresentIds(review.present_student_ids ?? []), [review.id, review.present_student_ids]);
+  const attendanceRecorded = review.present_student_ids !== null;
+
+  async function setAttendance(next: string[]) {
+    const previous = presentIds;
+    setPresentIds(next);
+    setSaving(true);
+    try {
+      await updateAttendance({ data: { token, id: review.id, present_student_ids: next } });
+      onSaved();
+    } catch (error) {
+      setPresentIds(previous);
+      toast.error(error instanceof Error ? error.message : "Could not save attendance");
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="mt-4 border-t pt-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <h4 className="text-sm font-semibold">Attendance</h4>
+          <p className="text-xs text-muted-foreground">{attendanceRecorded ? `${presentIds.length}/${members.length} present` : "Not recorded"}</p>
+        </div>
+        {!readOnly && <Button type="button" variant="outline" size="sm" className="h-9" disabled={saving || !members.length || presentIds.length === members.length}
+          onClick={() => setAttendance(members.map((member) => member.id))}><Check /> Mark All Present</Button>}
+      </div>
+      <ul className="space-y-2">
+        {members.map((member) => {
+          const present = presentIds.includes(member.id);
+          return <li key={member.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/60 px-3 py-2">
+            <span className="min-w-0 text-sm"><span className="mr-3 inline-block min-w-16 font-mono text-muted-foreground">{member.roll_no}</span>{member.name}</span>
+            {readOnly ? (
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${!attendanceRecorded ? "bg-muted text-muted-foreground" : present ? "bg-success-soft text-success" : "bg-destructive/10 text-destructive"}`}>
+                {!attendanceRecorded ? "Not recorded" : present ? "Present" : "Absent"}
+              </span>
+            ) : (
+              <button type="button" disabled={saving} aria-pressed={present} onClick={() => setAttendance(present ? presentIds.filter((id) => id !== member.id) : [...presentIds, member.id])}
+                className={`min-h-9 rounded-full border px-3 text-xs font-semibold transition disabled:opacity-60 ${present ? "border-success bg-success-soft text-success" : "border-border bg-background text-muted-foreground hover:bg-accent"}`}>
+                {present ? "Present" : "Absent"}
+              </button>
+            )}
+          </li>;
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function AttendanceChart({ group }: { group: Group }) {
+  const data = group.members.map((member) => {
+    const attended = group.reviews.filter((review) => review.present_student_ids?.includes(member.id)).length;
+    return { name: member.name, rollNo: member.roll_no, attended, percentage: Math.round(attended / 5 * 100) };
+  });
+  return (
+    <div className="h-[360px] w-full rounded-xl border bg-card p-3 text-card-foreground sm:p-5">
+      {!data.length ? <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No group members to chart.</div> :
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 12, right: 8, left: -16, bottom: 8 }}>
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="rollNo" tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} axisLine={{ stroke: "var(--border)" }} tickLine={false} />
+            <YAxis domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} allowDecimals={false} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} axisLine={false} tickLine={false} />
+            <Tooltip content={({ active, payload }) => {
+              const item = payload?.[0]?.payload as (typeof data)[number] | undefined;
+              if (!active || !item) return null;
+              return <div className="rounded-lg border bg-popover px-3 py-2 text-popover-foreground shadow-md">
+                <p className="font-semibold">{item.name}</p><p className="text-xs text-muted-foreground">Roll No: {item.rollNo}</p>
+                <p className="mt-1 text-sm">Reviews Attended: {item.attended}/5</p><p className="text-sm">Attendance: {item.percentage}%</p>
+              </div>;
+            }} />
+            <Bar dataKey="attended" name="Reviews attended" fill="var(--primary)" radius={[5, 5, 0, 0]} maxBarSize={56} />
+          </BarChart>
+        </ResponsiveContainer>}
+    </div>
   );
 }
 
