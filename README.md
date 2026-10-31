@@ -1,17 +1,17 @@
 # Project Review Tracker
 
-A local web app for organizing student project groups and tracking their progress through five reviews. Teachers can manage class sections and rosters, record marks and feedback, track final submissions, and export section data to Excel.
+A web app for organizing student project groups and tracking progress through five reviews. Teachers can manage class sections and rosters, record marks and feedback, track attendance and final submissions, view attendance charts, and export section data to Excel.
 
 ## Features
 
 - Create, rename, and manage class sections.
-- Import student lists from `.xlsx`, `.xls`, or `.csv` files with **Roll Number** and **Student Name** columns. Re-importing a roster updates student names while keeping group assignments.
+- Import student lists from `.xlsx`, `.xls`, or `.csv` files with **Roll Number** and **Student Name** columns.
 - Create groups, assign students, and add project and GitHub links.
-- Track five reviews per group, including completion status, date, marks from 0 to 10, and feedback.
+- Track five reviews per group, including completion, date, marks, and feedback.
+- Mark students present or absent for each review, with a group attendance chart.
 - Record final submission status and remarks.
-- View group progress as Not Started, In Progress, or Completed.
-- Export the selected section to an `.xlsx` workbook with a **Groups** sheet and an **Unassigned Students** sheet. The export includes all groups in the section, even when the page is filtered.
-- Browse the tracker in read-only student view; sign in as a teacher to make changes.
+- Export group details and section attendance to separate Excel workbooks.
+- Browse in read-only student view; sign in as a teacher to make changes.
 
 ## Requirements
 
@@ -31,26 +31,37 @@ Open the local address printed by Vite in your browser. Keep the terminal runnin
 
 ## Teacher password
 
-The local teacher password defaults to `admin` when `TEACHER_PASSWORD` is not set. To choose your own password, create a `.env` file in the project directory with:
+The teacher password defaults to `admin` when `TEACHER_PASSWORD` is not set. To choose a password, create a `.env` file in the project directory:
 
 ```env
-TEACHER_PASSWORD=your-local-password
+TEACHER_PASSWORD=your-password
 ```
 
-Restart the dev server after changing `.env`. The `.env` file is excluded from Git; do not commit it.
+Restart the dev server after changing `.env`. The `.env` file is excluded from Git; never commit it.
 
-## Local data
+## Data storage
 
-Sections, students, groups, and reviews are stored in `data/review-tracker.json` on this computer. The file is created when the first change is saved and is excluded from Git. Back it up regularly if you need to preserve your records. Removing it resets the local tracker.
+When running locally without a database URL, records are stored in `data/review-tracker.json`. The file is created on the first saved change and is excluded from Git. Back it up regularly if you need to preserve your records.
 
-To store the data file in another location, set `LOCAL_DATA_DIR` in the environment before starting the app. Relative paths are resolved from the project directory.
+For a hosted deployment, configure a PostgreSQL connection string as `DATABASE_URL` or `POSTGRES_URL`. The app will create its `review_tracker_state` table and initialize an empty tracker on first use. Vercel deployments require this setting because function filesystems do not provide durable storage. A hosted database starts empty; local records are not uploaded automatically.
+
+## Deploy to Vercel
+
+The repository includes the Nitro Vite plugin and `vercel.json` framework configuration required for TanStack Start on Vercel. See [Vercel's TanStack Start deployment guide](https://vercel.com/kb/guide/deploy-a-tanstack-start-app-to-vercel).
+
+1. Push the project to GitHub and import the repository in Vercel.
+2. Provision a PostgreSQL database through a Vercel Marketplace integration, such as Neon, and make its connection string available to the project as `DATABASE_URL` or `POSTGRES_URL`.
+3. In the Vercel project settings, add `TEACHER_PASSWORD` as an environment variable for Production (and Preview if needed). Use the password you intend for the hosted site; do not put it in source files.
+4. Deploy or redeploy the project. The app initializes an empty database the first time it is used.
+
+Keep the database URL and teacher password private. The hosted deployment is separate from the local JSON data file.
 
 ## Project scripts
 
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the local development server |
-| `npm run build` | Create a production build in `dist/` |
+| `npm run build` | Create a production build |
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run ESLint |
 | `npm test` | Run the Vitest test suite |
@@ -59,6 +70,7 @@ To store the data file in another location, set `LOCAL_DATA_DIR` in the environm
 
 - React and TypeScript
 - TanStack Start and TanStack Router
-- Vite
+- Vite and Nitro
 - Tailwind CSS and Radix UI
+- PostgreSQL for hosted persistence; JSON file storage for local-only use
 - SheetJS (`xlsx`) for spreadsheet import and export

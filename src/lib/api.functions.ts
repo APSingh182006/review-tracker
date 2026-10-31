@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import postgres from "postgres";
 import { z } from "zod";
 
 type Section = { id: string; name: string; created_at: string };
@@ -32,6 +33,32 @@ type LocalState = {
 };
 
 let mutationQueue = Promise.resolve();
+let postgresClient: ReturnType<typeof postgres> | undefined;
+let postgresSchemaReady: Promise<void> | undefined;
+
+function databaseUrl() {
+  return process.env["DATABASE_URL"] || process.env["POSTGRES_URL"] || "";
+}
+
+function getPostgres() {
+  if (!postgresClient) postgresClient = postgres(databaseUrl(), { max: 1, idle_timeout: 20, connect_timeout: 10 });
+  return postgresClient;
+}
+
+async function ensurePostgresSchema() {
+  if (!postgresSchemaReady) {
+    postgresSchemaReady = (async () => {
+      const sql = getPostgres();
+      await sql`CREATE TABLE IF NOT EXISTS review_tracker_state (
+        id TEXT PRIMARY KEY,
+        state JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
+      await sql`INSERT INTO review_tracker_state (id, state) VALUES ('main', ${sql.json(emptyState())}) ON CONFLICT (id) DO NOTHING`;
+    })();
+  }
+  await postgresSchemaReady;
+}
 
 async function dataPaths() {
   const { join, resolve } = await import("node:path");
@@ -46,6 +73,15 @@ function emptyState(): LocalState {
 }
 
 async function readState(): Promise<LocalState> {
+  if (process.env["VERCEL"] === "1" && !databaseUrl()) {
+    throw new Error("Set DATABASE_URL or POSTGRES_URL in the Vercel project to enable persistent tracker storage");
+  }
+  if (databaseUrl()) {
+    await ensurePostgresSchema();
+    const [row] = await getPostgres()`SELECT state FROM review_tracker_state WHERE id = 'main'`;
+    if (!row) throw new Error("Tracker database has not been initialized");
+    return row["state"] as LocalState;
+  }
   try {
     const { readFile } = await import("node:fs/promises");
     const { dataFile } = await dataPaths();
@@ -57,6 +93,20 @@ async function readState(): Promise<LocalState> {
 }
 
 async function mutateState<T>(mutate: (state: LocalState) => T | Promise<T>): Promise<T> {
+  if (process.env["VERCEL"] === "1" && !databaseUrl()) {
+    throw new Error("Set DATABASE_URL or POSTGRES_URL in the Vercel project to enable persistent tracker storage");
+  }
+  if (databaseUrl()) {
+    await ensurePostgresSchema();
+    return await getPostgres().begin<T>(async (tx) => {
+      const [row] = await tx`SELECT state FROM review_tracker_state WHERE id = 'main' FOR UPDATE`;
+      if (!row) throw new Error("Tracker database has not been initialized");
+      const state = row["state"] as LocalState;
+      const result = await mutate(state);
+      await tx`UPDATE review_tracker_state SET state = ${tx.json(state)}, updated_at = NOW() WHERE id = 'main'`;
+      return result;
+    }) as T;
+  }
   const previous = mutationQueue;
   let release!: () => void;
   mutationQueue = new Promise<void>((resolve) => { release = resolve; });
