@@ -1,20 +1,64 @@
-# Review Tracker (local)
+# Project Review Tracker
 
-This is a self-contained local version of the Review Tracker. It runs with TanStack Start and stores sections, students, groups, and reviews in `data/review-tracker.json`. It does not need Lovable, Supabase, or cloud credentials.
+A local web app for organizing student project groups and tracking their progress through five reviews. Teachers can manage class sections and rosters, record marks and feedback, track final submissions, and export section data to Excel.
 
-## Run on Windows
+## Features
 
-Install Node.js 22 or newer, then open PowerShell in this folder and run:
+- Create, rename, and manage class sections.
+- Import student lists from `.xlsx`, `.xls`, or `.csv` files with **Roll Number** and **Student Name** columns. Re-importing a roster updates student names while keeping group assignments.
+- Create groups, assign students, and add project and GitHub links.
+- Track five reviews per group, including completion status, date, marks from 0 to 10, and feedback.
+- Record final submission status and remarks.
+- View group progress as Not Started, In Progress, or Completed.
+- Export the selected section to an `.xlsx` workbook with a **Groups** sheet and an **Unassigned Students** sheet. The export includes all groups in the section, even when the page is filtered.
+- Browse the tracker in read-only student view; sign in as a teacher to make changes.
+
+## Requirements
+
+- Node.js 22 or newer
+- npm
+
+## Run locally
+
+From the project directory, open PowerShell and run:
 
 ```powershell
 npm install --legacy-peer-deps
 npm run dev
 ```
 
-Open the local URL printed by Vite (usually `http://localhost:3000`). Keep the terminal open while using the app. Stop it with **Ctrl+C**.
+Open the local address printed by Vite in your browser. Keep the terminal running while you use the app. Press **Ctrl+C** in that terminal to stop it.
 
-If `TEACHER_PASSWORD` is already set in `.env`, use that password. Otherwise the local teacher password is `admin`. To change it, add `TEACHER_PASSWORD=your-password` to `.env` and restart the app. Keep the existing `.env` values when adding this line.
+## Teacher password
 
-Data is saved in `data/review-tracker.json` and remains on this computer. Back up that file to preserve your records. Deleting it resets the local data. Set `LOCAL_DATA_DIR` in the process environment if you want to store the data file elsewhere.
+The local teacher password defaults to `admin` when `TEACHER_PASSWORD` is not set. To choose your own password, create a `.env` file in the project directory with:
 
-To create a production build locally, run `npm run build`.
+```env
+TEACHER_PASSWORD=your-local-password
+```
+
+Restart the dev server after changing `.env`. The `.env` file is excluded from Git; do not commit it.
+
+## Local data
+
+Sections, students, groups, and reviews are stored in `data/review-tracker.json` on this computer. The file is created when the first change is saved and is excluded from Git. Back it up regularly if you need to preserve your records. Removing it resets the local tracker.
+
+To store the data file in another location, set `LOCAL_DATA_DIR` in the environment before starting the app. Relative paths are resolved from the project directory.
+
+## Project scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the local development server |
+| `npm run build` | Create a production build in `dist/` |
+| `npm run preview` | Preview the production build locally |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run the Vitest test suite |
+
+## Technology
+
+- React and TypeScript
+- TanStack Start and TanStack Router
+- Vite
+- Tailwind CSS and Radix UI
+- SheetJS (`xlsx`) for spreadsheet import and export
