@@ -1,0 +1,1 @@
+ALTER TABLE public.groups ADD COLUMN project_link text, ADD COLUMN github_link text;
