@@ -125,7 +125,7 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 bg-header text-primary-foreground shadow-card">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">
           <div className="flex items-center gap-2">
@@ -156,7 +156,7 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
         {sectionsQ.isLoading ? (
           <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
         ) : !sections.length ? (
@@ -219,6 +219,24 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
           </>
         )}
       </main>
+
+      <footer className="border-t bg-card/70">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-4 py-4 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Built by</span>
+          <span className="flex items-center gap-3">
+            <span>Anand</span>
+            <a href="https://www.linkedin.com/in/anand-prakash-singh-4042692ba" target="_blank" rel="noreferrer" aria-label="Anand on LinkedIn" className="transition-colors hover:text-primary">LinkedIn</a>
+            <a href="https://github.com/APSingh182006" target="_blank" rel="noreferrer" aria-label="Anand on GitHub" className="transition-colors hover:text-primary">GitHub</a>
+          </span>
+          <span className="h-4 border-l" aria-hidden="true" />
+          <span className="flex items-center gap-3">
+            <span>Raghvender</span>
+            <a href="https://github.com/Raghav8826" target="_blank" rel="noreferrer" aria-label="Raghvender on GitHub" className="transition-colors hover:text-primary">GitHub</a>
+          </span>
+          <span className="h-4 border-l" aria-hidden="true" />
+          <span>Akshansh</span>
+        </div>
+      </footer>
 
       <SectionsDialog open={sectionsOpen} onOpenChange={setSectionsOpen} token={token} sections={sections}
         onChanged={refreshSections} onCreated={(id) => { setSectionId(id); setSectionsOpen(false); }} />
