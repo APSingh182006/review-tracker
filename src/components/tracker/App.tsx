@@ -222,6 +222,11 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
 
       <footer className="border-t bg-card/70">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-4 py-4 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span>Guided by</span>
+            <a href="https://www.researchgate.net/profile/Raghunath-Dey-2" target="_blank" rel="noreferrer" aria-label="Raghunath Dey on ResearchGate" className="font-medium text-foreground transition-colors hover:text-primary">Raghunath Dey</a>
+          </span>
+          <span className="h-4 border-l" aria-hidden="true" />
           <span className="font-medium text-foreground">Built by</span>
           <span className="flex items-center gap-3">
             <span>Anand <span className="font-mono text-xs text-muted-foreground/80">2405788</span></span>
