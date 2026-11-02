@@ -84,7 +84,7 @@ export function GroupDetail({
 
   return (
     <Sheet open={!!group} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-xl [&>button:first-child]:fixed [&>button:first-child]:right-4 [&>button:first-child]:top-4 [&>button:first-child]:z-[60] [&>button:first-child>svg]:h-5 [&>button:first-child>svg]:w-5">
         {group && (
           <>
             <SheetHeader className="text-left">

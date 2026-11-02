@@ -224,17 +224,17 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-4 py-4 text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Built by</span>
           <span className="flex items-center gap-3">
-            <span>Anand</span>
+            <span>Anand <span className="font-mono text-xs text-muted-foreground/80">2405788</span></span>
             <a href="https://www.linkedin.com/in/anand-prakash-singh-4042692ba" target="_blank" rel="noreferrer" aria-label="Anand on LinkedIn" className="transition-colors hover:text-primary">LinkedIn</a>
             <a href="https://github.com/APSingh182006" target="_blank" rel="noreferrer" aria-label="Anand on GitHub" className="transition-colors hover:text-primary">GitHub</a>
           </span>
           <span className="h-4 border-l" aria-hidden="true" />
           <span className="flex items-center gap-3">
-            <span>Raghvender</span>
+            <span>Raghvender <span className="font-mono text-xs text-muted-foreground/80">2405825</span></span>
             <a href="https://github.com/Raghav8826" target="_blank" rel="noreferrer" aria-label="Raghvender on GitHub" className="transition-colors hover:text-primary">GitHub</a>
           </span>
           <span className="h-4 border-l" aria-hidden="true" />
-          <span>Akshansh</span>
+          <span>Akshansh <span className="font-mono text-xs text-muted-foreground/80">2405787</span></span>
         </div>
       </footer>
 
