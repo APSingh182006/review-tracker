@@ -209,6 +209,18 @@ export type Group = {
   project_link: string | null; github_link: string | null;
   members: { id: string; roll_no: string; name: string }[]; reviews: Review[];
 };
+export type SectionWorkbookPayload = {
+  students: { roll_no: string; name: string }[];
+  groups: {
+    group_no: number; title: string; final_submitted: boolean; final_remarks: string | null;
+    project_link: string | null; github_link: string | null;
+    members: { roll_no: string; name: string }[];
+    reviews: {
+      review_no: number; done: boolean; done_date: string | null; marks: number | null;
+      feedback: string | null; present_roll_nos: string[] | null;
+    }[];
+  }[];
+};
 
 export const getSectionData = createServerFn({ method: "POST" })
   .validator((data: { token?: string; sectionId: string }) => optionalTokenSchema.extend({ sectionId: z.string().uuid() }).parse(data))
@@ -260,6 +272,91 @@ export const importStudents = createServerFn({ method: "POST" })
         else state.students.push({ id: id(), section_id: data.sectionId, ...row });
       }
       return { count: deduped.size };
+    });
+  });
+
+export const importSectionWorkbook = createServerFn({ method: "POST" })
+  .validator((data: { token: string; sectionId: string; payload: SectionWorkbookPayload }) => tokenSchema.extend({
+    sectionId: z.string().uuid(),
+    payload: z.object({
+      students: z.array(z.object({
+        roll_no: z.string().trim().min(1).max(50), name: z.string().trim().min(1).max(120),
+      })).max(2000),
+      groups: z.array(z.object({
+        group_no: z.number().int().min(1).max(10000),
+        title: z.string().trim().min(1).max(200),
+        final_submitted: z.boolean(),
+        final_remarks: z.string().max(2000).nullable(),
+        project_link: z.string().max(500).nullable().refine((value) => !value || /^https?:\/\//i.test(value), "Project links must start with http(s)://"),
+        github_link: z.string().max(500).nullable().refine((value) => !value || /^https?:\/\//i.test(value), "GitHub links must start with http(s)://"),
+        members: z.array(z.object({
+          roll_no: z.string().trim().min(1).max(50), name: z.string().trim().min(1).max(120),
+        })).min(1).max(50),
+        reviews: z.array(z.object({
+          review_no: z.number().int().min(1).max(5), done: z.boolean(),
+          done_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+          marks: z.number().min(0).max(10).nullable(), feedback: z.string().max(2000).nullable(),
+          present_roll_nos: z.array(z.string().min(1).max(50)).max(50).nullable(),
+        })).length(5),
+      })).max(500),
+    }),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    await authorize(data.token);
+    return mutateState((state) => {
+      if (!state.sections.some((section) => section.id === data.sectionId)) throw new Error("Section not found");
+      if (state.students.some((student) => student.section_id === data.sectionId) ||
+          state.groups.some((group) => group.section_id === data.sectionId)) {
+        throw new Error("Import is only available in an empty section. Create a new section or choose an empty one.");
+      }
+
+      const studentsByRoll = new Map<string, StudentRecord>();
+      for (const student of data.payload.students) {
+        if (studentsByRoll.has(student.roll_no)) throw new Error(`Duplicate roll number ${student.roll_no} in workbook`);
+        const record: StudentRecord = { id: id(), section_id: data.sectionId, ...student };
+        studentsByRoll.set(student.roll_no, record);
+        state.students.push(record);
+      }
+
+      const groupNumbers = new Set<number>();
+      const assignedRolls = new Set<string>();
+      for (const imported of data.payload.groups) {
+        if (groupNumbers.has(imported.group_no)) throw new Error(`Duplicate group number ${imported.group_no} in workbook`);
+        groupNumbers.add(imported.group_no);
+        const memberRecords = imported.members.map((member) => {
+          const record = studentsByRoll.get(member.roll_no);
+          if (!record || record.name !== member.name) throw new Error(`Student ${member.roll_no} is missing or inconsistent in the workbook`);
+          if (assignedRolls.has(member.roll_no)) throw new Error(`Student ${member.roll_no} appears in more than one group`);
+          assignedRolls.add(member.roll_no);
+          return record;
+        });
+        const memberIds = new Set(memberRecords.map((member) => member.id));
+        const reviewNumbers = new Set(imported.reviews.map((review) => review.review_no));
+        if (reviewNumbers.size !== 5) throw new Error(`Group ${imported.group_no} must have Reviews 1–5`);
+        for (const review of imported.reviews) {
+          if (review.present_roll_nos?.some((rollNo) => !imported.members.some((member) => member.roll_no === rollNo))) {
+            throw new Error(`Review ${review.review_no} attendance includes a student outside Group ${imported.group_no}`);
+          }
+        }
+
+        const groupId = id();
+        state.groups.push({
+          id: groupId, section_id: data.sectionId, group_no: imported.group_no, title: imported.title,
+          final_submitted: imported.final_submitted, final_remarks: imported.final_remarks,
+          project_link: imported.project_link, github_link: imported.github_link,
+        });
+        state.group_members.push(...memberRecords.map((member) => ({ group_id: groupId, student_id: member.id })));
+        state.reviews.push(...imported.reviews.map((review) => ({
+          id: id(), group_id: groupId, review_no: review.review_no, done: review.done,
+          done_date: review.done_date, marks: review.marks, feedback: review.feedback,
+          present_student_ids: review.present_roll_nos === null ? null : [...new Set(review.present_roll_nos.map((rollNo) => {
+            const member = studentsByRoll.get(rollNo);
+            if (!member || !memberIds.has(member.id)) throw new Error(`Student ${rollNo} is not in Group ${imported.group_no}`);
+            return member.id;
+          }))],
+        })));
+      }
+      return { groups: data.payload.groups.length, students: data.payload.students.length };
     });
   });
 

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { GraduationCap, LogOut, Plus, Search, Settings2, KeyRound, Users, Loader2, FolderPlus, Download } from "lucide-react";
+import { GraduationCap, LogOut, Plus, Search, Settings2, KeyRound, Users, Loader2, FolderPlus, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { listSections, getSectionData, deleteGroup, verifyToken, type Group } from "@/lib/api.functions";
+import { listSections, getSectionData, deleteGroup, verifyToken, importSectionWorkbook, type Group } from "@/lib/api.functions";
 import { clearToken, getToken, getLastSection, setLastSection } from "@/lib/session";
 import { groupStatus, type GroupStatus } from "@/lib/status";
 import { Login } from "./Login";
@@ -19,6 +19,7 @@ import { GroupDialog } from "./GroupDialog";
 import { GroupDetail } from "./GroupDetail";
 import { GroupCard } from "./GroupCard";
 import { downloadAttendanceWorkbook, downloadSectionWorkbook } from "@/lib/export-section";
+import { parseSectionWorkbook } from "@/lib/import-section";
 
 export function TrackerApp() {
   const [token, setTokenState] = useState<string | null>(null);
@@ -45,6 +46,8 @@ const FILTERS: { key: "all" | GroupStatus; label: string }[] = [
 ];
 
 function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () => void; onLogin: () => void }) {
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const [importingWorkbook, setImportingWorkbook] = useState(false);
   const isTeacher = !!token;
   const qc = useQueryClient();
   const sectionsQ = useQuery({ queryKey: ["sections"], queryFn: () => listSections({ data: { token } }) });
@@ -121,6 +124,25 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
       toast.success("Attendance export downloaded");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not export attendance");
+    }
+  }
+
+  async function importWorkbook(file: File) {
+    if (!sectionId || !section) return;
+    if (groups.length || students.length) {
+      toast.error("Import the workbook into a new, empty section so existing data is not changed.");
+      return;
+    }
+    setImportingWorkbook(true);
+    try {
+      const payload = await parseSectionWorkbook(file);
+      const result = await importSectionWorkbook({ data: { token, sectionId, payload } });
+      await refresh();
+      toast.success(`Imported ${result.groups} groups and ${result.students} students into ${section.name}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not import this workbook");
+    } finally {
+      setImportingWorkbook(false);
     }
   }
 
@@ -207,7 +229,24 @@ function Dashboard({ token, onLogout, onLogin }: { token: string; onLogout: () =
                 <p className="text-lg font-medium">No students in this section yet</p>
                 {isTeacher && <>
                 <p className="text-muted-foreground">Import your class list (.xlsx or .csv) to begin forming groups.</p>
-                <Button className="mt-4 h-11" onClick={() => setStudentsOpen(true)}><Users /> Import students</Button></>}
+                <Button className="mt-4 h-11" onClick={() => setStudentsOpen(true)}><Users /> Import students</Button>
+                {!groups.length && <>
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (file) void importWorkbook(file);
+                }} />
+                <div className="mt-3 flex flex-col items-center">
+                  <Button variant="outline" className="h-11" disabled={!section || dataQ.isLoading || importingWorkbook}
+                    onClick={() => importFileRef.current?.click()}>
+                    {importingWorkbook ? <Loader2 className="animate-spin" /> : <Upload />} Import from Excel
+                  </Button>
+                  <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                    Use a Review Tracker export to restore all students, groups, reviews, attendance, and project details into this empty section.
+                  </p>
+                </div>
+                </>}
+                </>}
               </div>
             ) : visible.length === 0 ? (
               <p className="py-16 text-center text-muted-foreground">{groups.length ? "No groups match your search." : "No groups yet — create one with “New group”."}</p>

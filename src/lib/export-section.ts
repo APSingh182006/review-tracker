@@ -14,6 +14,8 @@ export async function downloadSectionWorkbook(
       `Review ${number} Date`,
       `Review ${number} Marks (out of 10)`,
       `Review ${number} Feedback`,
+      `Review ${number} Attendance Marked`,
+      `Review ${number} Present Roll Numbers`,
     ];
   }).flat();
   const headers = [
@@ -60,6 +62,9 @@ export async function downloadSectionWorkbook(
         review?.done_date ?? "",
         review?.marks ?? "",
         review?.feedback ?? "",
+        review ? (review.present_student_ids === null ? "No" : "Yes") : "",
+        review?.present_student_ids?.map((studentId) => group.members.find((member) => member.id === studentId)?.roll_no)
+          .filter((rollNo): rollNo is string => !!rollNo).join("; ") ?? "",
       ]),
     ];
   });
@@ -81,8 +86,19 @@ export async function downloadSectionWorkbook(
   unassignedSheet["!autofilter"] = { ref: unassignedSheet["!ref"] ?? "A1" };
   unassignedSheet["!cols"] = [{ wch: 20 }, { wch: 32 }];
 
+  const memberRows = groups.flatMap((group) => group.members.map((member) => [
+    group.group_no, group.title, member.roll_no, member.name,
+  ]));
+  const memberSheet = XLSX.utils.aoa_to_sheet([
+    ["Group Number", "Project Title", "Roll Number", "Student Name"],
+    ...memberRows,
+  ]);
+  memberSheet["!autofilter"] = { ref: memberSheet["!ref"] ?? "A1" };
+  memberSheet["!cols"] = [{ wch: 16 }, { wch: 32 }, { wch: 20 }, { wch: 32 }];
+
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, groupSheet, "Groups");
+  XLSX.utils.book_append_sheet(workbook, memberSheet, "Group Members");
   XLSX.utils.book_append_sheet(workbook, unassignedSheet, "Unassigned Students");
 
   const date = new Date();
